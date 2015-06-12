@@ -3,7 +3,7 @@
     <parent>
       <groupId>org.eclipse.hudson.plugins</groupId>
       <artifactId>hudson-plugin-parent</artifactId>
-      <version>3.0.0-M3</version>
+      <version>3.0.0</version>
     </parent>
   
   <groupId>org.hudsonci.plugins</groupId>
@@ -33,6 +33,15 @@
     <url>https://github.com/hudson3-plugins/build-timeout-plugin</url>
   </scm>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.eclipse.hudson.tools</groupId>
+                <artifactId>maven-hpi-plugin</artifactId>
+                <version>3.0.3</version>
+            </plugin>
+        </plugins>
+    </build>
 </project>  
   
 
