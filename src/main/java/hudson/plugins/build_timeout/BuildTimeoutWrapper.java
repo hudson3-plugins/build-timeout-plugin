@@ -7,12 +7,16 @@ import hudson.model.AbstractProject;
 import hudson.model.BuildListener;
 import hudson.model.Descriptor;
 import hudson.model.Executor;
+import hudson.model.Result;
 import hudson.tasks.BuildWrapper;
 import hudson.tasks.BuildWrapperDescriptor;
 import hudson.triggers.SafeTimerTask;
 import hudson.triggers.Trigger;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.NoSuchFieldException;
+import java.lang.IllegalAccessException;
 
 import org.kohsuke.stapler.DataBoundConstructor;
 
@@ -47,6 +51,7 @@ public class BuildTimeoutWrapper extends BuildWrapper {
                 private final BuildListener listener;
                 //Did the task timeout?
                 public boolean timeout= false;
+                public Result result;
 
                 private TimeoutTimerTask(AbstractBuild build, BuildListener listener) {
                     this.build = build;
@@ -55,11 +60,18 @@ public class BuildTimeoutWrapper extends BuildWrapper {
 
                 public void doRun() {
                     // timed out
-                    if (failBuild)
-                        listener.getLogger().println("Build timed out (after " + timeoutMinutes + " minutes). Marking the build as failed.");
-                    else
-                        listener.getLogger().println("Build timed out (after " + timeoutMinutes + " minutes). Marking the build as aborted.");
+                    String resultName;
+                    if (failBuild) {
+                        result = Result.FAILURE;
+                        resultName = "failed";
+                    }
+                    else {
+                        result = Result.ABORTED;
+                        resultName = "aborted";
+                    }
+                    listener.getLogger().println("Build timed out (after " + timeoutMinutes + " minutes). Marking the build as " + resultName + ".");
                     timeout=true;
+
                     Executor e = build.getExecutor();
                     if (e != null)
                         e.interrupt();
@@ -76,7 +88,30 @@ public class BuildTimeoutWrapper extends BuildWrapper {
             @Override
             public boolean tearDown(AbstractBuild build, BuildListener listener) throws IOException, InterruptedException {
                 task.cancel();
+
+                if (task.result != null) {
+                    overrideBuildAborted(build, task.result);
+                }
                 return (!task.timeout ||!failBuild);
+            }
+
+            private void overrideBuildAborted(AbstractBuild build, Result newResult) {
+                Class<?> c = build.getClass();
+                while(! (c.getCanonicalName().equals("hudson.model.Run"))) {
+                    c = c.getSuperclass();
+                    if(c == null) {
+                        return;
+                    }
+                }
+                try {
+                    Field result = c.getDeclaredField("result");
+                    result.setAccessible(true);
+                    result.set(build, newResult);
+                } catch(NoSuchFieldException e) {
+                    listener.getLogger().println("NoSuchFieldException - Build was not set to: " + newResult);
+                } catch(IllegalAccessException e) {
+                    listener.getLogger().println("IllegalAccessException - Build was set to: " + newResult);
+                }
             }
         }
 
